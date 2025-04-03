@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+/*
 int main(){
     int fd = open("test.txt", O_RDWR);
     if(fd == -1){
@@ -30,5 +31,28 @@ int main(){
     munmap(mapped, sb.st_size);
     close(fd);
 
+    return 0;
+}
+    */
+int main(){
+    int fd = open("test.txt", O_RDWR);
+    if(fd == -1){
+        perror("open");
+        return 1;
+    }
+    struct stat my;
+    if(fstat(fd, &my) == -1){
+        perror("fstat");
+        return 1;
+    }
+    char *mapped = mmap(NULL, my.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if(mapped == MAP_FAILED){
+        perror("mmap");
+        return 1;
+    }
+    mapped[0] = 'X';
+    msync(mapped, my.st_size, MS_SYNC);
+    munmap(mapped, my.st_size);
+    close(fd);
     return 0;
 }
