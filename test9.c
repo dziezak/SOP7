@@ -15,7 +15,7 @@
 #define SHM_NAME "/semaphore_shm"
 #define PRODUCENT_NUMER 3
 #define CONSUMENT_NUMBER 2
-#define NUMBER_OF_DOCUMENTS 6
+#define NUMBER_OF_DOCUMENTS 2
 #define SHM_SIZE sizeof(SharedMemory)
 
 typedef struct{
