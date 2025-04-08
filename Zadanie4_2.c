@@ -89,21 +89,35 @@ void usage(char* argv[])
     printf("N - Size of batch to calculate before reporting to shared memory (default: 1000)\n");
 }
 
+
+
 typedef struct{
     int process_count;
     float a, b;
     uint64_t total_points;
     uint64_t hit_points;
+    int stop;
 }SharedMemory;
 #define SHM_NAME "/my_shm"
 #define SEM_NAME "/my_sem"
 
 
+SharedMemory* get_shared_ptr(SharedMemory* ptr){
+    static SharedMemory* shared_ptr = NULL;
+    if(ptr != NULL)
+        shared_ptr = ptr;
+    return shared_ptr;
+}
+
+void sigint_handler(int sig){
+    SharedMemory* data = get_shared_ptr(NULL);
+    if(data) data->stop = 1;
+}
 
 
 int main(int argc, char* argv[])
 {
-    int N, a, b;
+    float N, a, b;
     if(argc > 4){
         usage(argv);
     }
@@ -125,6 +139,13 @@ int main(int argc, char* argv[])
     shared_data->b = b;
     shared_data->hit_points = 0;
     shared_data->total_points = 0;
+    shared_data->stop = 0;
+
+    struct sigaction sa;
+    sa.sa_handler = sigint_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    if (sigaction(SIGINT, &sa, NULL) < 0) ERR("sigaction");
     
     sem_t* sem = sem_open(SEM_NAME, O_CREAT, 0666, 1);
     if(sem == SEM_FAILED) ERR("sem_open");
@@ -135,20 +156,31 @@ int main(int argc, char* argv[])
         if(pid == 0){
             srand(getpid()^time(NULL));
             for(int batch = 0; batch < 3; batch++){
+                sem_wait(sem);
+                bool should_stop = (shared_data->stop == 1);
+                sem_post(sem);
+                if(should_stop) break;
+
                 int hits = randomize_points(N, a, b);
 
                 sem_wait(sem);
-                shared_data->process_count--;
                 shared_data->hit_points += hits;
                 shared_data->total_points += N;
-                //printf("Process %d: pozostalo %d processow\n", getpid(), shared_data->process_count);
                 printf("Proces %d | Batch %d | Trafienia: %lu / %lu\n",
                     getpid(), batch + 1, shared_data->hit_points, shared_data->total_points);
                 sem_post(sem);
             }
 
             sleep(2);
+            sem_wait(sem);
+            shared_data->process_count--;
+            bool is_last = (shared_data->process_count == 0);
+            sem_post(sem);
             
+            if(is_last){
+                double result = summarize_calculations(shared_data->total_points, shared_data->hit_points, shared_data->a, shared_data->b);
+                printf("\nPID[%d] FINAL RESULT: %5lf\n", getpid(), result);
+            }
             sem_close(sem);
             munmap(shared_data, shm_size);
             exit(EXIT_SUCCESS);
