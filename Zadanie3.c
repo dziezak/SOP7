@@ -62,7 +62,6 @@ int main(int argc, char** argv){
             //size_t end = (i+1)*chunk_size -1; // czy ok?
             size_t end = (i == MAX_PROCESSES - 1) ? file_size : (i + 1) * chunk_size;
 
-
             int *local_counts = shared_counts + i * 256;
             for(size_t j = start; j < end; j++){
                 unsigned char c = mapped_data[j];
